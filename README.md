@@ -13,7 +13,7 @@ en Packet Tracer.
 
 ## Video de sustentación
 
-Lista de reproducción en YouTube: [PEGAR AQUÍ EL LINK DE LA PLAYLIST]
+Lista de reproducción en YouTube: https://youtu.be/UhsbETouIOk
 
 ## Orden lógico de configuración
 
