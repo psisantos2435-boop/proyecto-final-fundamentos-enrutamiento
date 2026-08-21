@@ -1,0 +1,116 @@
+=========================================================
+ R2 - ROUTER-ON-A-STICK CON HSRP (ACTIVO)
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+R2 es el router gemelo de R1: también hace enrutamiento
+router-on-a-stick para las VLANs 300, 500 y 999, pero con
+mayor prioridad HSRP (120 contra 110 de R1), por lo que R2
+es el router ACTIVO que normalmente atiende el tráfico de
+gateway de esas VLANs, mientras R1 queda en espera.
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Identificación: hostname "R2" y banner MOTD.
+
+2. Interfaz física hacia R3-DHCP (gig0/1/0):
+   IP punto a punto 8.22.75.106/30, enlace independiente
+   del de R1 hacia R3-DHCP (path redundante).
+
+3. Interfaz física hacia el switch (gig0/1):
+   Sin IP propia, solo activada; el direccionamiento se
+   hace en las subinterfaces.
+
+4. Subinterfaces (router-on-a-stick):
+   - gig0/1.300 (VLAN 300): IP 8.22.64.3/21.
+   - gig0/1.500 (VLAN 500): IP 8.22.75.35/27.
+   - gig0/1.999 (VLAN 999, Nativa): IP 8.22.75.195/27,
+     encapsulación dot1Q 999 "native".
+   Nótese que R1 y R2 usan la penúltima y última IP
+   utilizable de cada subred respectivamente, dejando la
+   primera IP libre para la IP virtual de HSRP.
+
+5. HSRP en cada subinterfaz de datos (300 y 500):
+   - Misma IP virtual que en R1 (mismo grupo standby:
+     30 para VLAN 300, 50 para VLAN 500, 99 para VLAN 999),
+     ya que ambos routers deben compartir la misma
+     dirección de gateway virtual.
+   - "standby X priority 120": prioridad más alta que R1,
+     por lo que R2 gana la elección y se convierte en el
+     router ACTIVO de HSRP.
+   - "standby X preempt": si R2 se recupera después de una
+     caída, retoma automáticamente el rol activo gracias a
+     su mayor prioridad.
+   - "ip helper-address" hacia R3-DHCP en las subinterfaces
+     de datos, para reenviar solicitudes DHCP.
+
+6. Ruta por defecto:
+   0.0.0.0/0 apunta hacia R3-DHCP (8.22.75.105), usando el
+   enlace directo de R2 hacia ese router.
+
+7. Guardado: "end" + "wr".
+
+COMANDOS APLICADOS (configuración completa)
+--------------------------------------------------------
+enable
+configure terminal
+
+hostname R2
+
+banner motd #
+ACCESO SOLO AUTORIZADO
+Frederick Alexander Santos Rivera
+2025-0822
+#
+
+interface gig0/1/0
+ ip address 8.22.75.106 255.255.255.252
+ no shutdown
+ exit
+
+interface gig0/1
+ no ip address
+ no shutdown
+ exit
+
+interface gig0/1.300
+ encapsulation dot1Q 300
+ ip address 8.22.64.3 255.255.248.0
+ standby 30 ip 8.22.64.1
+ standby 30 priority 120
+ standby 30 preempt
+ ip helper-address 8.22.75.105
+ exit
+
+interface gig0/1.500
+ encapsulation dot1Q 500
+ ip address 8.22.75.35 255.255.255.224
+ standby 50 ip 8.22.75.33
+ standby 50 priority 120
+ standby 50 preempt
+ ip helper-address 8.22.75.105
+ exit
+
+interface gig0/1.999
+ encapsulation dot1Q 999 native
+ ip address 8.22.75.195 255.255.255.224
+ standby 99 ip 8.22.75.193
+ standby 99 priority 120
+ standby 99 preempt
+ exit
+
+ip route 0.0.0.0 0.0.0.0 8.22.75.105
+
+end
+wr
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+show ip interface brief
+show standby brief
+   (confirmar que R2 aparece Active)
+show ip route
+ping desde un cliente de VLAN 300/500 hacia la IP virtual

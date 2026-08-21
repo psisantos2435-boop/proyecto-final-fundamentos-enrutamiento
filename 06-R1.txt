@@ -1,0 +1,123 @@
+=========================================================
+ R1 - ROUTER-ON-A-STICK CON HSRP (STANDBY)
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+R1 realiza enrutamiento entre VLANs para las redes 300
+(Docentes/Estudiantes), 500 (Académicos) y 999 (Nativa)
+mediante subinterfaces (router-on-a-stick). Trabaja en
+pareja con R2 usando HSRP para dar redundancia: R2 es el
+router activo (mayor prioridad) y R1 queda como standby,
+listo para tomar el control si R2 falla.
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Identificación: hostname "R1" y banner MOTD.
+
+2. Interfaz física hacia R3-DHCP (gig0/0/0):
+   Se le asigna una IP punto a punto (8.22.75.102/30) para
+   la conexión directa entre R1 y R3-DHCP, por donde
+   viajarán las rutas hacia las redes 300 y 500.
+
+3. Interfaz física hacia el switch (gig0/0):
+   Se deja sin IP propia ("no ip address") porque el
+   direccionamiento real se hace en las subinterfaces
+   (router-on-a-stick); solo se activa con "no shutdown".
+
+4. Subinterfaces (una por VLAN):
+   - gig0/0.300 (VLAN 300): IP 8.22.64.2/21, encapsulación
+     dot1Q 300.
+   - gig0/0.500 (VLAN 500): IP 8.22.75.34/27, encapsulación
+     dot1Q 500.
+   - gig0/0.999 (VLAN 999, Nativa): IP 8.22.75.194/27,
+     encapsulación dot1Q 999 "native" (indica que esta
+     subinterfaz corresponde a la VLAN nativa del trunk,
+     por lo que no se etiqueta con tag 802.1Q).
+
+5. HSRP en cada subinterfaz de datos (300 y 500):
+   - "standby X ip <IP virtual>": define la IP de gateway
+     virtual compartida entre R1 y R2, que es la que
+     realmente usan los clientes como default-gateway.
+   - "standby X priority 110": prioridad de R1 en la
+     elección HSRP (menor que la de R2, que usa 120, por lo
+     que R2 será el activo).
+   - "standby X preempt": permite que, si R1 recupera
+     servicio después de una caída, retome su rol según su
+     prioridad relativa (en este caso, seguiría siendo
+     standby porque R2 tiene mayor prioridad).
+   - "ip helper-address": reenvía las solicitudes DHCP
+     broadcast hacia el servidor DHCP en R3-DHCP.
+   La subinterfaz 999 (nativa) también corre HSRP pero sin
+   helper-address, ya que es la VLAN de administración, no
+   de datos de usuario final.
+
+6. Ruta por defecto:
+   0.0.0.0/0 apunta hacia R3-DHCP (8.22.75.101), para que
+   el tráfico sin ruta específica salga por ese router
+   hacia el resto de la topología / ISP.
+
+7. Guardado: "end" + "wr".
+
+COMANDOS APLICADOS (configuración completa)
+--------------------------------------------------------
+enable
+configure terminal
+
+hostname R1
+
+banner motd #
+ACCESO SOLO AUTORIZADO
+Frederick Alexander Santos Rivera
+2025-0822
+#
+
+interface gig0/0/0
+ ip address 8.22.75.102 255.255.255.252
+ no shutdown
+ exit
+
+interface gig0/0
+ no ip address
+ no shutdown
+ exit
+
+interface gig0/0.300
+ encapsulation dot1Q 300
+ ip address 8.22.64.2 255.255.248.0
+ standby 30 ip 8.22.64.1
+ standby 30 priority 110
+ standby 30 preempt
+ ip helper-address 8.22.75.101
+ exit
+
+interface gig0/0.500
+ encapsulation dot1Q 500
+ ip address 8.22.75.34 255.255.255.224
+ standby 50 ip 8.22.75.33
+ standby 50 priority 110
+ standby 50 preempt
+ ip helper-address 8.22.75.101
+ exit
+
+interface gig0/0.999
+ encapsulation dot1Q 999 native
+ ip address 8.22.75.194 255.255.255.224
+ standby 99 ip 8.22.75.193
+ standby 99 priority 110
+ standby 99 preempt
+ exit
+
+ip route 0.0.0.0 0.0.0.0 8.22.75.101
+
+end
+wr
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+show ip interface brief
+show standby brief
+   (confirmar que R2 aparece Active y R1 Standby)
+show ip route

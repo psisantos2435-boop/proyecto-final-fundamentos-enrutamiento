@@ -1,0 +1,231 @@
+=========================================================
+ SMC1 - SWITCH MULTICAPA
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+SMC1 es el switch de capa 3 (multicapa) que actúa como el
+punto central de enrutamiento entre VLANs para las redes
+de Servidores, Empleados, Finanzas, TI y WIFI. Se conecta
+hacia arriba (Gi1/1/1) con R3-DHCP para salir al resto de
+la topología, y hacia abajo con SW3 mediante un
+EtherChannel (Port-channel2).
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Identificación del equipo:
+   Se asigna el hostname "SMC1" y un banner MOTD de aviso
+   legal para dejar constancia de que el acceso es
+   restringido y quién es el responsable del equipo.
+
+2. Seguridad de acceso administrativo:
+   - "enable secret" cifra la contraseña de modo
+     privilegiado.
+   - "service password-encryption" cifra el resto de
+     contraseñas en texto plano de la configuración.
+   - Se crean usuarios locales (Admin y matrícula) con
+     privilegio 15 para poder administrar el equipo por
+     SSH.
+   - Se genera el dominio (ip domain-name) y el par de
+     llaves RSA, requisitos para habilitar SSH versión 2.
+   - En las líneas VTY se exige login local y se restringe
+     el acceso remoto únicamente a SSH (no Telnet).
+
+3. Habilitación de enrutamiento entre VLANs:
+   "ip routing" activa la función de capa 3 del switch,
+   necesaria para que las interfaces VLAN (SVIs) puedan
+   enrutar tráfico entre sí.
+
+4. Creación de VLANs:
+   Se crean las VLAN 2 (Servidores), 3 (Empleados),
+   4 (Finanzas), 5 (TI), 6 (WIFI) y 7 (Nativa), cada una
+   con su nombre descriptivo para facilitar la
+   administración.
+
+5. Interfaces VLAN (SVI) como gateway de cada red:
+   Cada "interface vlan X" recibe la IP que funcionará
+   como gateway de esa subred, y un "ip helper-address"
+   que reenvía las solicitudes DHCP broadcast hacia el
+   servidor R3-DHCP (unicast), ya que el servidor DHCP no
+   está en la misma red.
+
+6. Enlace hacia el router DHCP/rutas (Gi1/1/1):
+   Se configura como interfaz enrutada ("no switchport")
+   con IP punto a punto hacia R3-DHCP, permitiendo que
+   SMC1 tenga salida hacia el resto de la red.
+
+7. EtherChannel hacia SW3:
+   Los puertos Gi1/0/22-23 se agrupan en el
+   Port-channel2 con LACP en modo "active". El
+   Port-channel se configura como troncal (trunk),
+   permitiendo el paso de las VLANs 2-7, con VLAN nativa
+   7 y "switchport nonegotiate" para no negociar DTP
+   (mitiga ataques de VLAN hopping).
+
+8. Enlace trunk adicional (Gi1/0/24):
+   Se deja un enlace trunk independiente permitiendo solo
+   las VLANs 6 y 7 (probablemente hacia SW4, rama WIFI).
+
+9. Seguridad de capa 2 (corrección [2]):
+   - "ip dhcp snooping" habilitado sobre las VLANs de
+     datos, evita que un DHCP falso (rogue) entregue IPs
+     en la red; solo el puerto/uplink de confianza hacia
+     R3-DHCP puede responder ofertas DHCP.
+   - "ip arp inspection" (DAI) valida que las direcciones
+     MAC e IP de los paquetes ARP coincidan con la base de
+     snooping, evitando ataques de ARP spoofing/envenena-
+     miento.
+
+10. Ruta por defecto:
+    Se apunta la ruta 0.0.0.0/0 hacia R3-DHCP para que
+    todo el tráfico sin ruta específica salga por ese
+    camino.
+
+11. Guardado de la configuración:
+    "end" + "wr" (write) guarda la configuración en la
+    NVRAM para que persista tras un reinicio.
+
+COMANDOS APLICADOS (configuración completa)
+--------------------------------------------------------
+enable
+configure terminal
+
+hostname SMC1
+
+banner motd #
+ACCESO SOLO AUTORIZADO
+Frederick Alexander Santos Rivera
+2025-0822
+#
+
+enable secret Cisco123
+
+service password-encryption
+
+username Admin privilege 15 secret Cisco123
+username 2025-0822 privilege 15 secret Cisco123
+
+ip domain-name itla.local
+
+crypto key generate rsa general-keys modulus 1024
+
+ip ssh version 2
+
+line vty 0 15
+ login local
+ transport input ssh
+ exit
+
+ip routing
+
+vlan 2
+ name SERVIDORES
+ exit
+
+vlan 3
+ name EMPLEADOS
+ exit
+
+vlan 4
+ name FINANZAS
+ exit
+
+vlan 5
+ name TI
+ exit
+
+vlan 6
+ name WIFI
+ exit
+
+vlan 7
+ name NATIVA
+ exit
+
+interface vlan 2
+ ip address 8.22.74.129 255.255.255.128
+ ip helper-address 8.22.75.97
+ no shutdown
+ exit
+
+interface vlan 3
+ ip address 8.22.74.1 255.255.255.128
+ ip helper-address 8.22.75.97
+ no shutdown
+ exit
+
+interface vlan 4
+ ip address 8.22.75.1 255.255.255.224
+ ip helper-address 8.22.75.97
+ no shutdown
+ exit
+
+interface vlan 5
+ ip address 8.22.75.65 255.255.255.224
+ ip helper-address 8.22.75.97
+ no shutdown
+ exit
+
+interface vlan 6
+ ip address 8.22.72.1 255.255.254.0
+ ip helper-address 8.22.75.97
+ no shutdown
+ exit
+
+interface GigabitEthernet1/1/1
+ no switchport
+ ip address 8.22.75.98 255.255.255.252
+ no shutdown
+ exit
+
+interface Port-channel2
+ switchport mode trunk
+ switchport trunk native vlan 7
+ switchport trunk allowed vlan 2,3,4,5,6,7
+ switchport nonegotiate
+ no shutdown
+ exit
+
+interface range GigabitEthernet1/0/22-23
+ switchport mode trunk
+ switchport trunk native vlan 7
+ switchport trunk allowed vlan 2,3,4,5,6,7
+ switchport nonegotiate
+ channel-group 2 mode active
+ exit
+
+interface GigabitEthernet1/0/24
+ switchport mode trunk
+ switchport trunk native vlan 7
+ switchport trunk allowed vlan 6,7
+ switchport nonegotiate
+ no shutdown
+ exit
+
+! --- Seguridad adicional ---
+ip dhcp snooping
+ip dhcp snooping vlan 2,3,4,5,6
+no ip dhcp snooping information option
+ip dhcp snooping trust
+! (aplicar "ip dhcp snooping trust" en el puerto/Port-channel que va
+!  hacia R3-DHCP, es decir Gi1/1/1 o el puerto uplink correspondiente)
+
+ip arp inspection vlan 2,3,4,5,6
+ip arp inspection validate src-mac dst-mac ip
+
+ip route 0.0.0.0 0.0.0.0 8.22.75.97
+
+end
+wr
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+show vlan brief
+show etherchannel summary
+show ip interface brief
+show ip route
+show ip dhcp snooping
+show ip arp inspection
+ssh -l Admin 8.22.75.98   (probar acceso remoto)

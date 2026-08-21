@@ -1,0 +1,184 @@
+=========================================================
+ SW2 - SWITCH DE ACCESO / PUENTE RAÍZ
+ (Docentes/Estudiantes, Académicos)
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+SW2 cumple la misma función que SW1 (switch de acceso para
+las VLANs 300 y 500), pero además es designado como puente
+raíz (root bridge) principal de Spanning Tree para las
+VLANs 300, 500 y 999. Junto a SW1 forma el EtherChannel
+LACP (Port-channel1) que interconecta ambos switches y
+sube hacia R1/R2.
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Identificación: hostname "SW2" y banner MOTD.
+
+2. Creación de las mismas VLANs que en SW1: 300
+   (Docentes/Estudiantes), 500 (Académicos) y 999
+   (Admin/Nativa).
+
+3. Puertos de acceso:
+   - fa0/5, fa0/6 y fa0/20 -> VLAN 300
+   - fa0/9 y fa0/17         -> VLAN 500
+   Todos con portfast, bpduguard y port-security (máximo 2
+   MAC, violación shutdown, sticky).
+
+4. EtherChannel hacia SW1 (fa0/23-24, channel-group 1
+   modo active/LACP) formando el Port-channel1, trunk con
+   VLANs 300,500,999 permitidas, VLAN nativa 999 y
+   nonegotiate.
+
+5. Enlace trunk adicional gig0/1 con la misma
+   configuración (uplink hacia R1/R2).
+
+6. Spanning-tree:
+   "spanning-tree vlan 300,500,999 root primary" hace que
+   SW2 tome automáticamente la prioridad más baja posible
+   para esas VLANs, convirtiéndose en el puente raíz. Esto
+   centraliza y hace predecible el árbol de spanning-tree
+   de este segmento.
+
+7. Seguridad de capa 2 (DHCP Snooping + DAI) sobre VLAN
+   300 y 500, con Port-channel1 y gig0/1 como puertos de
+   confianza.
+
+8. Guardado: "end" + "wr".
+
+COMANDOS APLICADOS (configuración completa)
+--------------------------------------------------------
+enable
+configure terminal
+
+hostname SW2
+
+banner motd #
+ACCESO SOLO AUTORIZADO
+Frederick Alexander Santos Rivera
+2025-0822
+#
+
+vlan 300
+ name DOCENTES_ESTUDIANTES
+vlan 500
+ name ACADEMICOS
+vlan 999
+ name ADMIN_NATIVA
+
+interface fa0/5
+ switchport mode access
+ switchport access vlan 300
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface fa0/6
+ switchport mode access
+ switchport access vlan 300
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface fa0/20
+ switchport mode access
+ switchport access vlan 300
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface fa0/9
+ switchport mode access
+ switchport access vlan 500
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface fa0/17
+ switchport mode access
+ switchport access vlan 500
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface range fa0/23-24
+ channel-group 1 mode active
+ exit
+
+interface port-channel 1
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 300,500,999
+ switchport nonegotiate
+ no shutdown
+ exit
+
+interface gig0/1
+ switchport mode trunk
+ switchport trunk native vlan 999
+ switchport trunk allowed vlan 300,500,999
+ switchport nonegotiate
+ no shutdown
+ exit
+
+spanning-tree vlan 300,500,999 root primary
+
+! --- Seguridad adicional ---
+ip dhcp snooping
+ip dhcp snooping vlan 300,500
+no ip dhcp snooping information option
+interface port-channel 1
+ ip dhcp snooping trust
+ exit
+interface gig0/1
+ ip dhcp snooping trust
+ exit
+
+ip arp inspection vlan 300,500
+ip arp inspection validate src-mac dst-mac ip
+interface port-channel 1
+ ip arp inspection trust
+ exit
+interface gig0/1
+ ip arp inspection trust
+ exit
+
+end
+wr
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+show vlan brief
+show etherchannel summary
+show spanning-tree vlan 300
+show spanning-tree vlan 500
+   (confirmar que SW2 aparece como Root Bridge)
+show interfaces trunk

@@ -1,0 +1,185 @@
+=========================================================
+ SW3 - SWITCH DE ACCESO (Servidores, Empleados, Finanzas, TI, WIFI)
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+SW3 es el switch de acceso donde se conectan los host-ends
+de las VLANs 2 (Servidores), 3 (Empleados), 4 (Finanzas),
+5 (TI) y 6 (WIFI). Se conecta hacia SMC1 mediante un
+EtherChannel troncal (Port-channel2), que transporta todas
+esas VLANs hacia el switch multicapa donde se enruta el
+tráfico entre ellas.
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Identificación: hostname "SW3" y banner MOTD de acceso
+   restringido.
+
+2. Creación local de las mismas VLANs que existen en SMC1
+   (2,3,4,5,6,7), ya que un switch de acceso debe conocer
+   las VLANs que va a asignar a sus puertos, aunque el
+   enrutamiento real ocurra en SMC1.
+
+3. Asignación de puertos de acceso por departamento:
+   - fa0/1-3   -> VLAN 2 (Servidores)
+   - fa0/4-8   -> VLAN 3 (Empleados)
+   - fa0/9-11  -> VLAN 4 (Finanzas)
+   - fa0/12-13 -> VLAN 5 (TI)
+   - fa0/14-18 -> VLAN 6 (WIFI)
+   En cada rango se aplica:
+   - "spanning-tree portfast": el puerto pasa directo a
+     forwarding sin esperar los tiempos normales de STP,
+     apropiado para puertos de usuario final.
+   - "spanning-tree bpduguard enable": si el puerto llega a
+     recibir una BPDU (señal de que hay un switch no
+     autorizado conectado), el puerto se apaga
+     automáticamente, protegiendo la topología STP.
+   - "switchport port-security" con máximo 2 direcciones
+     MAC, violación "shutdown" y aprendizaje "sticky":
+     limita cuántos dispositivos pueden usar el puerto y
+     lo apaga si se detecta un exceso o un dispositivo no
+     autorizado.
+
+4. EtherChannel hacia SMC1:
+   Los puertos gig0/1-2 se agrupan en channel-group 2 modo
+   "active" (LACP) formando el Port-channel2, configurado
+   como trunk con VLAN nativa 7 y "switchport nonegotiate"
+   para evitar negociación DTP no solicitada.
+
+5. Seguridad de capa 2 (DHCP Snooping + DAI):
+   Igual que en SMC1, se habilita DHCP snooping y ARP
+   inspection sobre las VLANs de datos. El Port-channel2
+   (uplink hacia SMC1, donde está el servidor DHCP real)
+   se marca como puerto de confianza ("trust") tanto para
+   DHCP snooping como para ARP inspection, ya que por ahí
+   sí deben pasar respuestas DHCP y tráfico legítimo.
+
+6. Guardado: "end" + "wr".
+
+COMANDOS APLICADOS (configuración completa)
+--------------------------------------------------------
+enable
+configure terminal
+
+hostname SW3
+
+banner motd #
+ACCESO SOLO AUTORIZADO
+Frederick Alexander Santos Rivera
+2025-0822
+#
+
+vlan 2
+ name SERVIDORES
+vlan 3
+ name EMPLEADOS
+vlan 4
+ name FINANZAS
+vlan 5
+ name TI
+vlan 6
+ name WIFI
+vlan 7
+ name NATIVA
+
+interface range fa0/1-3
+ switchport mode access
+ switchport access vlan 2
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface range fa0/4-8
+ switchport mode access
+ switchport access vlan 3
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface range fa0/9-11
+ switchport mode access
+ switchport access vlan 4
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface range fa0/12-13
+ switchport mode access
+ switchport access vlan 5
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface range fa0/14-18
+ switchport mode access
+ switchport access vlan 6
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface range gig0/1-2
+ channel-group 2 mode active
+ exit
+
+interface port-channel 2
+ switchport mode trunk
+ switchport trunk native vlan 7
+ switchport trunk allowed vlan 2,3,4,5,6,7
+ switchport nonegotiate
+ no shutdown
+ exit
+
+! --- Seguridad adicional ---
+ip dhcp snooping
+ip dhcp snooping vlan 2,3,4,5,6
+no ip dhcp snooping information option
+! Aplicar "ip dhcp snooping trust" en el Port-channel2 (uplink a SMC1)
+interface port-channel 2
+ ip dhcp snooping trust
+ exit
+
+ip arp inspection vlan 2,3,4,5,6
+ip arp inspection validate src-mac dst-mac ip
+interface port-channel 2
+ ip arp inspection trust
+ exit
+
+end
+wr
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+show vlan brief
+show etherchannel summary
+show interfaces trunk
+show port-security
+show ip dhcp snooping
+show ip arp inspection interfaces

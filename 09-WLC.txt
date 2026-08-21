@@ -1,0 +1,85 @@
+=========================================================
+ WLC - WIRELESS LAN CONTROLLER
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+El WLC administra de forma centralizada los Access Points
+(AP-Biblioteca y AP-Lobby) y las redes inalámbricas (SSIDs)
+de la institución. Se conecta a la red cableada dentro de
+la VLAN 6 (WIFI) y recibe su dirección de administración de
+forma manual durante el asistente de configuración inicial.
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Asistente inicial (arranque del WLC):
+   Al encender el WLC por primera vez, Packet Tracer
+   presenta un asistente de configuración inicial donde se
+   definen:
+   - System Name: WLC
+   - Management IP Address: 8.22.72.2
+   - Subnet Mask: 255.255.254.0 (misma subred que la VLAN
+     6 - WIFI, definida en SMC1: 8.22.72.0/23)
+   - Default Gateway: 8.22.72.1 (SVI de VLAN 6 en SMC1)
+   - Primary DHCP Server: 8.22.75.97 (interfaz de SMC1
+     hacia R3-DHCP, usada como referencia del servidor
+     DHCP que atenderá a los clientes inalámbricos)
+
+2. Acceso a la interfaz gráfica (GUI):
+   Una vez asignada la IP de administración, se accede
+   desde un navegador a http://8.22.72.2 usando las
+   credenciales:
+   - Usuario: Admin
+   - Contraseña: Cisco123 (corrección [1]: en una versión
+     anterior se había usado por error "Cisco123x2"; se
+     corrigió para cumplir con lo solicitado en la tarea
+     12 del proyecto).
+
+3. Creación de las redes inalámbricas (WLANs/SSIDs):
+   Se crean tres SSIDs distintos según el público objetivo:
+   - Corporativos
+   - Biblioteca
+   - Campus
+   Cada uno con seguridad WPA2-Personal (PSK) y contraseña
+   Cisco123, garantizando que solo usuarios con la clave
+   correcta puedan asociarse a la red.
+
+4. Agrupación de APs por ubicación (AP Groups):
+   - Grupo BIBLIOTECA -> AP-B: transmite los SSIDs
+     Corporativos y Biblioteca.
+   - Grupo LOBBY -> AP-L: transmite los SSIDs Corporativos
+     y Campus.
+   Esto permite que cada Access Point difunda solo las
+   redes relevantes a su ubicación física, en lugar de
+   transmitir todos los SSIDs desde todos los puntos.
+
+5. Registro de los Access Points:
+   Los APs (AP-Biblioteca y AP-Lobby) se conectan a la red
+   cableada y, al recibir IP (vía DHCP o gestión del WLC),
+   se registran automáticamente en el controlador,
+   apareciendo en la lista de APs administrados.
+
+LIMITACIÓN CONOCIDA DE PACKET TRACER
+--------------------------------------------------------
+Packet Tracer no soporta la visualización completa de "AP
+Groups" en la interfaz del WLC: al intentar verlo, muestra
+el mensaje "This feature is not supported in Packet
+Tracer". A pesar de esto, los Access Points quedan
+correctamente registrados en el controlador y los WLAN
+(SSIDs) se crean sin problema; la limitación es solo
+visual/de reporte dentro del simulador, no afecta la
+funcionalidad real de la red inalámbrica.
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+- Mostrar en el WLC la lista de APs registrados
+  (pestaña "Wireless" o "Monitor").
+- Mostrar la lista de WLANs creados con su seguridad
+  WPA2-Personal.
+- Explicar verbalmente frente a cámara la limitación de
+  Packet Tracer respecto a los AP Groups, y evidenciarlo
+  con el mensaje de "feature not supported" si aparece.
+- Mostrar conectividad de un cliente/PC0 hacia el WLC
+  mediante ping (ver archivo 10-PC0-temporal.txt).

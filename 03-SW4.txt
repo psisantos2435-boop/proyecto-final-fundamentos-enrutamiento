@@ -1,0 +1,139 @@
+=========================================================
+ SW4 - SWITCH DE ACCESO WIFI (WLC, APs y PC0 temporal)
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+SW4 conecta el Wireless LAN Controller (WLC) y los Access
+Points de la red inalámbrica (VLAN 6 - WIFI), además del
+puerto temporal usado por PC0 para configurar el WLC antes
+de depender del DHCP relay. Se conecta hacia SMC1 mediante
+un enlace troncal directo (no EtherChannel, a diferencia de
+SW3).
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Identificación: hostname "SW4" y banner MOTD.
+
+2. Creación de VLAN 6 (WIFI) y VLAN 7 (Nativa), únicas
+   necesarias en este switch porque solo maneja tráfico
+   inalámbrico.
+
+3. Enlace troncal hacia SMC1 (gig0/1):
+   Se permite solo VLAN 6 y 7, con VLAN nativa 7 y
+   "switchport nonegotiate" para mitigar VLAN hopping vía
+   DTP.
+
+4. Puertos de acceso para APs (fa0/2, fa0/3, gig0/2):
+   Configurados en VLAN 6 con portfast, bpduguard y
+   port-security (máx. 2 MAC, violación shutdown, sticky),
+   igual criterio que en los demás switches de acceso.
+
+5. Puerto especial para PC0 temporal (fa0/4) - corrección
+   [5]:
+   Se deja en VLAN 6, con portfast, PERO sin port-security.
+   Esto es intencional: mientras se configura el WLC desde
+   PC0 con IP estática, no queremos que el puerto se
+   bloquee por seguridad y corte el acceso al proceso de
+   configuración inicial del controlador inalámbrico.
+
+6. Seguridad de capa 2 (DHCP Snooping + DAI) sobre VLAN 6,
+   con el enlace gig0/1 (uplink hacia SMC1) marcado como
+   confiable, ya que las respuestas DHCP legítimas llegan
+   por esa vía desde SMC1/R3-DHCP.
+
+7. Guardado: "end" + "wr".
+
+COMANDOS APLICADOS (configuración completa)
+--------------------------------------------------------
+enable
+configure terminal
+
+hostname SW4
+
+banner motd #
+ACCESO SOLO AUTORIZADO
+Frederick Alexander Santos Rivera
+2025-0822
+#
+
+vlan 6
+ name WIFI
+vlan 7
+ name NATIVA
+
+interface gig0/1
+ switchport mode trunk
+ switchport trunk native vlan 7
+ switchport trunk allowed vlan 6,7
+ switchport nonegotiate
+ no shutdown
+ exit
+
+interface fa0/2
+ switchport mode access
+ switchport access vlan 6
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+interface fa0/3
+ switchport mode access
+ switchport access vlan 6
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+ switchport port-security
+ switchport port-security maximum 2
+ switchport port-security violation shutdown
+ switchport port-security mac-address sticky
+ no shutdown
+ exit
+
+! --- Puerto para la PC0 temporal (corrección [5]) ---
+! Conexión física: PC0 Fa0  <--->  SW4 Fa0/4
+! Sin port-security para no bloquear la PC mientras se configura el WLC.
+interface fa0/4
+ switchport mode access
+ switchport access vlan 6
+ spanning-tree portfast
+ no shutdown
+ exit
+
+interface gig0/2
+ switchport mode access
+ switchport access vlan 6
+ spanning-tree portfast
+ no shutdown
+ exit
+
+! --- Seguridad adicional ---
+ip dhcp snooping
+ip dhcp snooping vlan 6
+no ip dhcp snooping information option
+interface gig0/1
+ ip dhcp snooping trust
+ exit
+
+ip arp inspection vlan 6
+ip arp inspection validate src-mac dst-mac ip
+interface gig0/1
+ ip arp inspection trust
+ exit
+
+end
+wr
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+show vlan brief
+show interfaces trunk
+show port-security interface fa0/2
+show ip dhcp snooping
+ping desde PC0 hacia el WLC (8.22.72.2)

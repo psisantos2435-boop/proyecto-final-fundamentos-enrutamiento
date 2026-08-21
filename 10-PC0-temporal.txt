@@ -1,0 +1,74 @@
+=========================================================
+ PC0 TEMPORAL - ACCESO INICIAL AL WLC
+ Proyecto Final - Fundamentos de Enrutamiento - ITLA
+ Frederick Alexander Santos Rivera - Matrícula 2025-0822
+=========================================================
+
+ROL EN LA TOPOLOGÍA
+--------------------------------------------------------
+PC0 es un equipo temporal utilizado ÚNICAMENTE para poder
+acceder a la interfaz gráfica del WLC (8.22.72.2) durante
+su configuración inicial, ya que en ese momento el DHCP
+relay hacia R3-DHCP todavía no está garantizado como
+disponible para el propio segmento de administración. Por
+eso se le asigna una IP estática en lugar de depender del
+DHCP.
+
+CONEXIÓN FÍSICA
+--------------------------------------------------------
+PC0 (puerto Fa0)  <--->  SW4 (puerto Fa0/4)
+
+El puerto Fa0/4 de SW4 se configuró en VLAN 6 (WIFI) SIN
+port-security (ver archivo 03-SW4.txt, corrección [5]),
+precisamente para que esta PC temporal no sea bloqueada
+mientras se realiza la configuración del controlador.
+
+PROCESO DE CONFIGURACIÓN (explicado paso a paso)
+--------------------------------------------------------
+1. Configuración IP estática en PC0 (corrección [4]):
+   - IP Address: 8.22.72.3
+   - Subnet Mask: 255.255.254.0
+   - Default Gateway: 8.22.72.1
+   Esta IP fue previamente excluida del pool DHCP de
+   R3-DHCP ("ip dhcp excluded-address 8.22.72.3") para
+   evitar que el servidor la asigne por error a otro
+   cliente mientras está en uso por PC0.
+
+2. Acceso al WLC desde el navegador de PC0:
+   Se abre http://8.22.72.2 desde el navegador de PC0 y
+   se ingresa con el usuario Admin y la contraseña
+   Cisco123 para completar la configuración de SSIDs, AP
+   Groups y registrar los Access Points (ver archivo
+   09-WLC.txt).
+
+3. Pruebas de conectividad desde PC0:
+   - ping 8.22.72.2    -> confirma comunicación con el WLC
+   - ping 8.22.75.97   -> confirma llegada hasta SMC1
+     (interfaz hacia R3-DHCP)
+   - ping 8.22.74.131  -> confirma llegada hasta el
+     servidor DNS
+   Estas pruebas sirven como evidencia de que la VLAN 6
+   (WIFI) tiene conectividad de extremo a extremo con el
+   resto de la topología, incluso antes de que un cliente
+   inalámbrico real se asocie al WLC.
+
+NOTA SOBRE LA CONECTIVIDAD INALÁMBRICA
+--------------------------------------------------------
+Packet Tracer no permite mostrar de forma nativa una
+conexión inalámbrica real dentro del simulador (no hay
+forma de "ver" el enlace Wi-Fi entre un cliente y un AP de
+la misma manera que un cable). Por esta razón, se utiliza
+PC0 con conexión cableada como evidencia indirecta de que
+la infraestructura (WLC, VLAN WIFI, DHCP, enrutamiento)
+funciona correctamente extremo a extremo, lo cual es
+condición necesaria para que un cliente inalámbrico real
+también pueda conectarse sin problema.
+
+VERIFICACIÓN SUGERIDA PARA EL VIDEO
+--------------------------------------------------------
+ipconfig                    (en PC0, confirmar IP estática)
+ping 8.22.72.2
+ping 8.22.75.97
+ping 8.22.74.131
+Abrir navegador -> http://8.22.72.2 -> iniciar sesión en
+el WLC con Admin / Cisco123
